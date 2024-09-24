@@ -5,15 +5,49 @@ import {
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers, network } from "hardhat";
+import {
+  TestContract,
+  MockCalculator,
+  TestInternalFunction,
+} from "../typechain-types"; // Replace with the actual path to your type-chain file
 
 describe("TestContract", function () {
+  let testContract: TestContract; // Assuming TestContract is the contract name
+  let mockCalculator: MockCalculator; // Assuming MockCalculator is the contract name
+  let testInternalFunction: TestInternalFunction; // Assuming TestInternalFunction is the contract name
+  let owner: HardhatEthersSigner;
+  let otherAccount: HardhatEthersSigner;
+  let constantA: number;
+  let constantB: number;
+  let zeroAddress: string;
+  let depositAmount: bigint;
+  let initialEtherAmount: string;
+
+  beforeEach(async () => {
+    const {
+      testContract: _testContract,
+      mockCalculator: _mockCalculator,
+      testInternalFunction: _testInternalFunction,
+      owner: _owner,
+      otherAccount: _otherAccount,
+      constantA: _constantA,
+      constantB: _constantB,
+      zeroAddress: _zeroAddress,
+      depositAmount: _depositAmount,
+    } = await loadFixture(deployTestContractFixture);
+
+    testContract = _testContract;
+    mockCalculator = _mockCalculator;
+    testInternalFunction = _testInternalFunction;
+    owner = _owner;
+    otherAccount = _otherAccount;
+    constantA = _constantA;
+    constantB = _constantB;
+    zeroAddress = _zeroAddress;
+    depositAmount = _depositAmount;
+    initialEtherAmount = ethers.toBeHex(_depositAmount);
+  });
   async function deployTestContractFixture() {
-    const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-    const ONE_GWEI = 1_000_000_000;
-
-    const lockedAmount = ONE_GWEI;
-    const unlockTime = (await time.latest()) + ONE_YEAR_IN_SECS;
-
     // Contracts are deployed using the first signer/account by default
     const [owner, otherAccount] = await ethers.getSigners();
     const constantA = 2;
@@ -54,18 +88,12 @@ describe("TestContract", function () {
 
   describe("Deployment", function () {
     it("Should set the right owner", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
-
       expect(await testContract.owner()).to.equal(owner.address);
     });
   });
 
   describe("InteractWithCalculator", function () {
     it("Should add by the calculator interface", async function () {
-      const { testContract, mockCalculator, constantA, constantB } =
-        await loadFixture(deployTestContractFixture);
       // 記錄傳遞的參數
       console.log("Constant A:", constantA);
       console.log("Constant B:", constantB);
@@ -81,9 +109,6 @@ describe("TestContract", function () {
   });
   describe("Add by override function", function () {
     it("Should add by the calculator", async function () {
-      const { testContract, constantA, constantB } = await loadFixture(
-        deployTestContractFixture
-      );
       // 記錄傳遞的參數
       console.log("Constant A:", constantA);
       console.log("Constant B:", constantB);
@@ -96,9 +121,6 @@ describe("TestContract", function () {
 
   describe("Deposit", function () {
     it("Should deposit", async function () {
-      const { testContract, otherAccount, depositAmount } = await loadFixture(
-        deployTestContractFixture
-      );
       // otherAccount 進行 ETH 存入，並檢查是否觸發 Deposit 事件
       await expect(
         testContract.connect(otherAccount).deposit({ value: depositAmount })
@@ -111,19 +133,11 @@ describe("TestContract", function () {
       );
     });
     it("Should handle zero deposits", async () => {
-      const { testContract, otherAccount } = await loadFixture(
-        deployTestContractFixture
-      );
-
       await expect(testContract.connect(otherAccount).deposit({ value: 0 }))
         .to.emit(testContract, "Deposit")
         .withArgs(otherAccount.address, 0);
     });
     it("Should handle large deposits", async () => {
-      const { testContract, otherAccount } = await loadFixture(
-        deployTestContractFixture
-      );
-
       const largeAmount = ethers.parseEther("1000");
 
       await expect(
@@ -136,10 +150,6 @@ describe("TestContract", function () {
 
   describe("AddData", () => {
     it("Should add data correctly", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
-
       // 1. 呼叫 addData，並確認事件是否被正確觸發
       const tx = await testContract.addData("Test information");
 
@@ -158,10 +168,6 @@ describe("TestContract", function () {
       expect(dataId).to.equal(1);
     });
     it("Should add empty info string correctly", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
-
       // 1. 呼叫 addData with empty info，並確認事件是否被正確觸發
       const tx = await testContract.addData("");
       // 2. 確認事件 DataAdded 是否正確觸發，並使用事件參數確認 counter 的值
@@ -180,9 +186,6 @@ describe("TestContract", function () {
     });
 
     it("Should add large info string correctly", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
       const longString = "abcdefghijklmnopqrstuvwxyz".repeat(40);
       console.log("longString:", longString);
       // 1. 呼叫 addData with empty info，並確認事件是否被正確觸發
@@ -206,16 +209,10 @@ describe("TestContract", function () {
 
   describe("TestInternalFunction", function () {
     it("Should multiply by two constants", async () => {
-      const { testInternalFunction, constantA, constantB } = await loadFixture(
-        deployTestContractFixture
-      );
       const result = await testInternalFunction.calculate(constantA, constantB);
       expect(result).to.equal(constantA * constantB);
     });
     it("Should call private function", async () => {
-      const { testInternalFunction, owner } = await loadFixture(
-        deployTestContractFixture
-      );
       const result = await testInternalFunction
         .connect(owner)
         .privateFunction();
@@ -225,9 +222,6 @@ describe("TestContract", function () {
 
   describe("FallbackAndReceive", function () {
     it("Should call fallback function when sending data", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
       // 建一個沒有匹配到函數簽名的數據
       const data = "0x12345678";
 
@@ -246,9 +240,6 @@ describe("TestContract", function () {
     });
 
     it("Should call receive function when sending Ether", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
       // 向合約發送 Ether
       const tx = await owner.sendTransaction({
         to: testContract.getAddress(),
@@ -265,9 +256,6 @@ describe("TestContract", function () {
   });
   describe("Withdraw", function () {
     it("Should call withdraw function", async () => {
-      const { testContract, owner } = await loadFixture(
-        deployTestContractFixture
-      );
       const tx = await owner.sendTransaction({
         to: testContract.getAddress(),
         value: ethers.parseEther("1"),
@@ -282,16 +270,10 @@ describe("TestContract", function () {
   });
   describe("TransferOwnership", function () {
     it("Should call transferOwnership function", async () => {
-      const { testContract, owner, otherAccount } = await loadFixture(
-        deployTestContractFixture
-      );
       await testContract.transferOwnership(otherAccount.address);
       expect(await testContract.owner()).to.equal(otherAccount.address);
     });
     it("Should handle invalid addresses in transferOwnership", async function () {
-      const { testContract, zeroAddress } = await loadFixture(
-        deployTestContractFixture
-      );
       await expect(
         testContract.transferOwnership(zeroAddress)
       ).to.be.revertedWith("Invalid address: zero address");
@@ -299,13 +281,11 @@ describe("TestContract", function () {
   });
   describe("OnlyActive", function () {
     it("Should return the current state of the contract", async () => {
-      const { testContract } = await loadFixture(deployTestContractFixture);
       const currentState = await testContract.getContractState();
       expect(currentState).to.equal(0); // Assuming State.Active is represented by 0
     });
 
     it("Should revert when calling functions when contract is inactive", async () => {
-      const { testContract } = await loadFixture(deployTestContractFixture);
       await testContract.setInactive();
       await expect(testContract.addData("Test information")).to.be.revertedWith(
         "Contract is not active"
@@ -313,8 +293,6 @@ describe("TestContract", function () {
     });
 
     it("Should revert when calling addData from a non-onlyActive function", async () => {
-      const { testContract } = await loadFixture(deployTestContractFixture);
-
       // Create a helper function that doesn't have the onlyActive modifier
       const helperFunction = async () => {
         await testContract.addData("Test information");
